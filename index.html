@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vornamen von Neugeborenen in München — Datenvisualisierung</title>
+<style>
+  :root{
+    --bg:#0f1320; --panel:#171c2e; --panel-2:#1f2538; --line:#2b3350;
+    --ink:#e8ecf6; --muted:#9aa5c4; --faint:#6b748f;
+    --boy:#4aa3ff; --girl:#ff6fae; --accent:#9b8cff;
+    --good:#34d399;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:radial-gradient(1200px 700px at 80% -10%, #1b2236 0%, var(--bg) 55%) fixed;
+    color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+  header.top{margin-bottom:18px}
+  h1{font-size:28px;line-height:1.15;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--muted);max-width:760px}
+  .src{color:var(--faint);font-size:13px;margin-top:8px}
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:16px;padding:18px 18px;
+    box-shadow:var(--shadow);margin-top:18px;
+  }
+  .card h2{margin:0 0 4px;font-size:18px;letter-spacing:-.01em}
+  .card .hint{color:var(--muted);font-size:13px;margin:0 0 14px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .stat .n{font-size:24px;font-weight:700;letter-spacing:-.02em}
+  .stat .l{color:var(--muted);font-size:12px;margin-top:2px}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{background:none;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font:inherit;font-weight:600}
+  .seg button.on{background:var(--accent);color:#0b0e18}
+  .seg button:not(.on):hover{color:var(--ink)}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .yearlbl{font-weight:700;font-size:22px;min-width:64px;text-align:center}
+  input[type=text]{
+    background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:10px;padding:9px 12px;font:inherit;min-width:220px;
+  }
+  input[type=text]:focus{outline:none;border-color:var(--accent)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .chip{display:inline-flex;align-items:center;gap:8px;background:var(--panel);
+    border:1px solid var(--line);border-radius:999px;padding:5px 6px 5px 12px;font-size:13px;font-weight:600}
+  .chip .dot{width:10px;height:10px;border-radius:50%}
+  .chip button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:2px 6px;border-radius:50%}
+  .chip button:hover{color:var(--ink);background:var(--panel-2)}
+  .auto{position:relative}
+  .menu{position:absolute;z-index:30;top:calc(100% + 6px);left:0;right:0;max-height:260px;overflow:auto;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);display:none}
+  .menu.show{display:block}
+  .menu div{padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+  .menu div:hover,.menu div.hl{background:var(--accent);color:#0b0e18}
+  .menu small{color:var(--muted)}
+  .menu div:hover small,.menu div.hl small{color:#0b0e18}
+  svg{display:block;width:100%;height:auto;overflow:visible}
+  .bar{transition:width .5s cubic-bezier(.2,.7,.2,1)}
+  .barlabel{fill:var(--ink);font-size:13px;font-weight:600;dominant-baseline:middle}
+  .barval{fill:var(--muted);font-size:12px;dominant-baseline:middle}
+  .axis{stroke:var(--line)}
+  .grid{stroke:var(--line);stroke-dasharray:3 4;opacity:.6}
+  .axislbl{fill:var(--faint);font-size:11px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin-top:8px}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .tip{position:fixed;pointer-events:none;z-index:50;background:#0b0e18;border:1px solid var(--line);
+    border-radius:8px;padding:7px 10px;font-size:12px;color:var(--ink);box-shadow:var(--shadow);display:none;white-space:nowrap}
+  .loading{display:flex;align-items:center;gap:14px;color:var(--muted)}
+  .spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 1s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .err{background:#3a1620;border:1px solid #6b2436;color:#ffd7df;border-radius:12px;padding:14px 16px}
+  .err code{background:rgba(0,0,0,.3);padding:2px 6px;border-radius:6px}
+  .muted{color:var(--muted)}
+  .pill{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+  .play{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;
+    width:40px;height:40px;cursor:pointer;font-size:15px}
+  .play:hover{border-color:var(--accent)}
+  .foot{color:var(--faint);font-size:12px;margin-top:26px;text-align:center}
+  @media (max-width:640px){h1{font-size:23px}.yearlbl{font-size:18px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>👶 Vornamen von Neugeborenen in München</h1>
+    <p class="sub">Interaktive Auswertung der offiziellen Vornamensstatistik der Landeshauptstadt München
+      (Nulljährige zum 31.12. des jeweiligen Jahres). Die Daten werden beim Öffnen dieser Seite
+      direkt und tagesaktuell aus dem Open-Data-Portal geladen.</p>
+    <p class="src">Quelle: <a href="https://opendata.muenchen.de/dataset/vornamen-von-neugeborenen" target="_blank" rel="noopener">Open Data Portal München — Vornamen von Neugeborenen</a> · Statistisches Amt München · Lizenz: CC BY 4.0</p>
+  </header>
+
+  <div id="status" class="card">
+    <div class="loading"><div class="spin"></div><div>Lade Datensätze aus dem Open-Data-Portal München …</div></div>
+  </div>
+
+  <div id="app" style="display:none">
+
+    <!-- Overview -->
+    <section class="card">
+      <h2>Überblick</h2>
+      <p class="hint">Gemeldete Vornamen-Nennungen pro Jahr (Summe aller <code>anzahl</code>-Werte je Jahrgang).</p>
+      <div class="stats" id="statgrid"></div>
+      <div style="margin-top:18px"><div id="overviewChart"></div></div>
+      <div class="legend">
+        <span><i style="background:var(--boy)"></i>Jungen</span>
+        <span><i style="background:var(--girl)"></i>Mädchen</span>
+      </div>
+    </section>
+
+    <!-- Top names per year -->
+    <section class="card">
+      <h2>Top-Vornamen eines Jahrgangs</h2>
+      <p class="hint">Die häufigsten Vornamen — wähle ein Jahr und ein Geschlecht.</p>
+      <div class="row" style="margin-bottom:6px">
+        <div class="seg" id="genderSeg">
+          <button data-g="w" class="on">Mädchen</button>
+          <button data-g="m">Jungen</button>
+          <button data-g="all">Gesamt</button>
+        </div>
+        <span class="pill">Top 25</span>
+      </div>
+      <div class="row" style="margin:14px 0 4px">
+        <button class="play" id="playBtn" title="Jahre abspielen">▶</button>
+        <span class="yearlbl" id="yearLbl">—</span>
+        <input type="range" id="yearRange" style="flex:1;min-width:200px">
+      </div>
+      <div id="topChart"></div>
+    </section>
+
+    <!-- Trend explorer -->
+    <section class="card">
+      <h2>Namens-Trend im Zeitverlauf</h2>
+      <p class="hint">Suche Vornamen und vergleiche, wie häufig sie über die Jahre vergeben wurden.</p>
+      <div class="row">
+        <div class="auto" style="flex:1;min-width:240px">
+          <input type="text" id="nameInput" placeholder="Vornamen suchen (z. B. Maximilian, Sophia …)" autocomplete="off">
+          <div class="menu" id="nameMenu"></div>
+        </div>
+        <div class="seg" id="trendMetric">
+          <button data-m="count" class="on">Anzahl</button>
+          <button data-m="share">Anteil&nbsp;‰</button>
+        </div>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div style="margin-top:6px"><div id="trendChart"></div></div>
+    </section>
+
+    <p class="foot" id="foot"></p>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+"use strict";
+const SVGNS="http://www.w3.org/2000/svg";
+const PORTAL="https://opendata.muenchen.de";
+const PKG="vornamen-von-neugeborenen";
+const COL={boy:getC("--boy"),girl:getC("--girl"),accent:getC("--accent"),muted:getC("--muted"),line:getC("--line"),ink:getC("--ink")};
+function getC(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const PALETTE=["#9b8cff","#4aa3ff","#ff6fae","#34d399","#fbbf24","#f97316","#22d3ee","#a78bfa","#f472b6","#84cc16"];
+const tip=document.getElementById('tip');
+function showTip(html,x,y){tip.innerHTML=html;tip.style.display='block';tip.style.left=(x+14)+'px';tip.style.top=(y+14)+'px';}
+function hideTip(){tip.style.display='none';}
+
+// ---------- data state ----------
+let YEARS=[];                 // sorted ascending
+const perYear=new Map();      // year -> {w:[{name,count}], m:[...], totW, totM}
+const nameIndex=new Map();    // lowerName -> {display, byYear:Map(year->{m,w}), total}
+
+// ---------- CSV parsing ----------
+function detectDelim(headerLine){
+  const c={};[';',',','\t','|'].forEach(d=>c[d]=headerLine.split(d).length);
+  return Object.keys(c).sort((a,b)=>c[b]-c[a])[0];
+}
+function splitLine(line,d){
+  // simple split with basic quote support
+  if(line.indexOf('"')===-1) return line.split(d);
+  const out=[];let cur='',q=false;
+  for(let i=0;i<line.length;i++){const ch=line[i];
+    if(ch==='"'){ if(q&&line[i+1]==='"'){cur+='"';i++;} else q=!q; }
+    else if(ch===d&&!q){out.push(cur);cur='';}
+    else cur+=ch;}
+  out.push(cur);return out;
+}
+function norm(s){return (s||'').replace(/^﻿/,'').trim().toLowerCase();}
+function findCol(headers,cands){
+  for(let i=0;i<headers.length;i++){const h=headers[i];
+    for(const c of cands){if(h===c||h.includes(c))return i;}}
+  return -1;
+}
+function parseInt2(s){const m=(s||'').replace(/[^\d]/g,'');return m?parseInt(m,10):0;}
+function parseCSV(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim().length);
+  if(!lines.length)return[];
+  const d=detectDelim(lines[0]);
+  const headers=splitLine(lines[0],d).map(norm);
+  let ci=findCol(headers,['vorname','name']);
+  let cg=findCol(headers,['geschlecht','sex','gender']);
+  let cc=findCol(headers,['anzahl','count','number','häufigkeit','haeufigkeit']);
+  if(ci<0)ci=0; if(cc<0)cc=headers.length-1;
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    const f=splitLine(lines[i],d);
+    if(f.length<2)continue;
+    const name=(f[ci]||'').replace(/^﻿/,'').trim().replace(/^"|"$/g,'');
+    if(!name)continue;
+    const gRaw=cg>=0?norm(f[cg]):'';
+    let g=gRaw.startsWith('m')?'m':(gRaw.startsWith('w')||gRaw.startsWith('f')?'w':'');
+    const cnt=parseInt2(f[cc]);
+    if(!cnt)continue;
+    rows.push({name,g,count:cnt});
+  }
+  return rows;
+}
+
+// ---------- fetch & build ----------
+async function getJSON(url){const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status+' für '+url);return r.json();}
+async function getText(url){const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}
+function yearOf(res){
+  const s=(res.name||'')+' '+(res.url||'');
+  const m=s.match(/(19|20)\d{2}/g);
+  return m?parseInt(m[m.length-1],10):null;
+}
+
+async function load(){
+  let pkg;
+  try{
+    pkg=await getJSON(`${PORTAL}/api/3/action/package_show?id=${PKG}`);
+  }catch(e){ return fail(e); }
+  const resources=(pkg.result&&pkg.result.resources||[])
+    .filter(r=>/csv/i.test(r.format||'')||/\.csv($|\?)/i.test(r.url||''))
+    .map(r=>({year:yearOf(r),url:r.url,name:r.name}))
+    .filter(r=>r.year&&r.year>1900&&r.year<2100);
+  // dedupe by year (keep last)
+  const byY=new Map(); resources.forEach(r=>byY.set(r.year,r));
+  const list=[...byY.values()].sort((a,b)=>a.year-b.year);
+  if(!list.length) return fail(new Error('Keine CSV-Ressourcen im Datensatz gefunden.'));
+
+  setStatus(`Lade ${list.length} Jahrgänge …`);
+  let done=0;
+  // limited concurrency
+  const queue=[...list];
+  async function worker(){
+    while(queue.length){
+      const r=queue.shift();
+      try{ const txt=await getText(r.url); ingest(r.year,parseCSV(txt)); }
+      catch(e){ console.warn('Jahr',r.year,'fehlgeschlagen:',e.message); }
+      setStatus(`Lade Jahrgänge … ${++done}/${list.length}`);
+    }
+  }
+  await Promise.all(Array.from({length:5},worker));
+  YEARS=[...perYear.keys()].sort((a,b)=>a-b);
+  if(!YEARS.length) return fail(new Error('Daten konnten nicht geparst werden.'));
+  build();
+}
+
+function ingest(year,rows){
+  let w=[],m=[],all=new Map(),totW=0,totM=0;
+  for(const {name,g,count} of rows){
+    if(g==='w'){w.push({name,count});totW+=count;}
+    else if(g==='m'){m.push({name,count});totM+=count;}
+    all.set(name,(all.get(name)||0)+count);
+    // name index
+    const key=name.toLowerCase();
+    let e=nameIndex.get(key);
+    if(!e){e={display:name,byYear:new Map(),total:0};nameIndex.set(key,e);}
+    const yy=e.byYear.get(year)||{m:0,w:0};
+    if(g==='m')yy.m+=count; else yy.w+=count; // unknown gender counted as 'w' bucket is avoided below
+    e.byYear.set(year,yy);
+    e.total+=count;
+  }
+  w.sort((a,b)=>b.count-a.count); m.sort((a,b)=>b.count-a.count);
+  const allArr=[...all.entries()].map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count);
+  perYear.set(year,{w,m,all:allArr,totW,totM});
+}
+function setStatus(t){document.querySelector('#status .loading div:last-child').textContent=t;}
+function fail(e){
+  document.getElementById('status').innerHTML=
+   `<div class="err"><b>Daten konnten nicht geladen werden.</b><br>${e.message}<br><br>
+    Dies passiert meist, wenn die Seite ohne Internetzugang geöffnet wird oder der Browser den
+    Zugriff auf <code>${PORTAL}</code> blockiert (z. B. CORS).<br>
+    Bitte öffne die Seite mit aktiver Internetverbindung. Datenquelle:
+    <a href="${PORTAL}/dataset/${PKG}" target="_blank" rel="noopener">Open Data Portal München</a>.</div>`;
+}
+
+// ---------- build UI ----------
+let curGender='w', curYear=null, trendMetric='count';
+const trendNames=[]; // {key,display,color}
+
+function build(){
+  document.getElementById('status').style.display='none';
+  document.getElementById('app').style.display='block';
+  buildOverview();
+  // year slider
+  const range=document.getElementById('yearRange');
+  range.min=0;range.max=YEARS.length-1;range.value=YEARS.length-1;
+  curYear=YEARS[YEARS.length-1];
+  range.addEventListener('input',()=>{curYear=YEARS[+range.value];drawTop();});
+  document.querySelectorAll('#genderSeg button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#genderSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');curGender=b.dataset.g;drawTop();});
+  document.getElementById('playBtn').onclick=playYears;
+  drawTop();
+  setupTrend();
+  // seed trend with a few iconic names if present
+  ['Maximilian','Sophia','Maria','Lukas'].forEach(n=>{if(nameIndex.has(n.toLowerCase()))addTrend(n.toLowerCase());});
+  drawTrend();
+
+  const tot=YEARS.reduce((s,y)=>s+perYear.get(y).totW+perYear.get(y).totM,0);
+  document.getElementById('foot').textContent=
+    `${YEARS.length} Jahrgänge (${YEARS[0]}–${YEARS[YEARS.length-1]}) · ${nameIndex.size.toLocaleString('de-DE')} verschiedene Vornamen · ${tot.toLocaleString('de-DE')} Nennungen insgesamt.`;
+}
+
+function buildOverview(){
+  const grid=document.getElementById('statgrid');
+  const last=YEARS[YEARS.length-1],first=YEARS[0];
+  const dLast=perYear.get(last);
+  const topGirl=dLast.w[0],topBoy=dLast.m[0];
+  const totLast=dLast.totW+dLast.totM;
+  const cards=[
+    ['Jahrgänge',`${first}–${last}`],
+    [`Nennungen ${last}`,totLast.toLocaleString('de-DE')],
+    [`Top Mädchen ${last}`,topGirl?topGirl.name:'—'],
+    [`Top Junge ${last}`,topBoy?topBoy.name:'—'],
+    ['Verschiedene Namen',nameIndex.size.toLocaleString('de-DE')],
+  ];
+  grid.innerHTML=cards.map(c=>`<div class="stat"><div class="n">${c[1]}</div><div class="l">${c[0]}</div></div>`).join('');
+  drawOverview();
+}
+
+// ---------- overview chart (stacked area: boys/girls per year) ----------
+function drawOverview(){
+  const W=1000,H=300,pad={l:56,r:16,t:14,b:34};
+  const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
+  const data=YEARS.map(y=>({y,m:perYear.get(y).totM,w:perYear.get(y).totW}));
+  const max=Math.max(...data.map(d=>d.m+d.w))*1.05||1;
+  const x=i=>pad.l+(YEARS.length===1?iw/2:iw*i/(YEARS.length-1));
+  const yv=v=>pad.t+ih-ih*v/max;
+  const svg=mk('svg',{viewBox:`0 0 ${W} ${H}`});
+  // grid + y labels
+  const ticks=4;
+  for(let t=0;t<=ticks;t++){const v=max*t/ticks;const yy=yv(v);
+    svg.append(mk('line',{class:'grid',x1:pad.l,x2:W-pad.r,y1:yy,y2:yy}));
+    svg.append(txt(pad.l-8,yy,fmtK(v),{class:'axislbl','text-anchor':'end','dominant-baseline':'middle'}));}
+  // x labels (sparse)
+  const step=Math.ceil(YEARS.length/10);
+  YEARS.forEach((y,i)=>{if(i%step===0||i===YEARS.length-1)
+    svg.append(txt(x(i),H-10,y,{class:'axislbl','text-anchor':'middle'}));});
+  // stacked areas: girls on bottom, boys on top
+  const girlsTop=data.map((d,i)=>[x(i),yv(d.w)]);
+  const bothTop=data.map((d,i)=>[x(i),yv(d.w+d.m)]);
+  svg.append(area(girlsTop,pad.t+ih,COL.girl,.85));
+  svg.append(bandArea(girlsTop,bothTop,COL.boy,.8));
+  // interaction layer
+  data.forEach((d,i)=>{
+    const r=mk('rect',{x:x(i)-iw/(YEARS.length*2),y:pad.t,width:iw/YEARS.length,height:ih,fill:'transparent'});
+    r.addEventListener('mousemove',e=>showTip(`<b>${d.y}</b><br>Mädchen: ${d.w.toLocaleString('de-DE')}<br>Jungen: ${d.m.toLocaleString('de-DE')}<br>Gesamt: ${(d.w+d.m).toLocaleString('de-DE')}`,e.clientX,e.clientY));
+    r.addEventListener('mouseleave',hideTip);
+    svg.append(r);
+  });
+  replace('overviewChart',svg);
+}
+function area(top,baseY,fill,op){
+  let d='M'+top.map(p=>p.join(',')).join(' L');
+  d+=` L${top[top.length-1][0]},${baseY} L${top[0][0]},${baseY} Z`;
+  return mk('path',{d,fill,'fill-opacity':op});
+}
+function bandArea(lower,upper,fill,op){
+  let d='M'+upper.map(p=>p.join(',')).join(' L');
+  d+=' L'+lower.slice().reverse().map(p=>p.join(',')).join(' L')+' Z';
+  return mk('path',{d,fill,'fill-opacity':op});
+}
+
+// ---------- top names bar chart ----------
+function drawTop(){
+  document.getElementById('yearLbl').textContent=curYear;
+  const d=perYear.get(curYear);
+  let arr = curGender==='m'?d.m : curGender==='w'?d.w : d.all;
+  arr=arr.slice(0,25);
+  const color = curGender==='m'?COL.boy : curGender==='w'?COL.girl : COL.accent;
+  const W=1000, rowH=26, pad={l:170,r:70,t:6,b:6};
+  const H=pad.t+pad.b+arr.length*rowH;
+  const iw=W-pad.l-pad.r;
+  const max=arr.length?arr[0].count:1;
+  const svg=mk('svg',{viewBox:`0 0 ${W} ${H}`});
+  arr.forEach((it,i)=>{
+    const y=pad.t+i*rowH;
+    const bw=Math.max(2,iw*it.count/max);
+    svg.append(txt(pad.l-10,y+rowH/2,`${i+1}. ${it.name}`,{class:'barlabel','text-anchor':'end'}));
+    const bar=mk('rect',{class:'bar',x:pad.l,y:y+4,width:bw,height:rowH-9,rx:5,fill:color,'fill-opacity':.92});
+    bar.addEventListener('mousemove',e=>showTip(`<b>${it.name}</b> · ${curYear}<br>${it.count.toLocaleString('de-DE')} Nennungen`,e.clientX,e.clientY));
+    bar.addEventListener('mouseleave',hideTip);
+    svg.append(bar);
+    svg.append(txt(pad.l+bw+8,y+rowH/2,it.count.toLocaleString('de-DE'),{class:'barval'}));
+  });
+  if(!arr.length)svg.append(txt(W/2,40,'Keine Daten',{class:'axislbl','text-anchor':'middle'}));
+  replace('topChart',svg);
+}
+let playT=null;
+function playYears(){
+  const btn=document.getElementById('playBtn'),range=document.getElementById('yearRange');
+  if(playT){clearInterval(playT);playT=null;btn.textContent='▶';return;}
+  btn.textContent='⏸';
+  if(+range.value>=YEARS.length-1)range.value=0;
+  playT=setInterval(()=>{
+    let v=+range.value;
+    if(v>=YEARS.length-1){clearInterval(playT);playT=null;btn.textContent='▶';return;}
+    range.value=v+1;curYear=YEARS[+range.value];drawTop();
+  },700);
+  curYear=YEARS[+range.value];drawTop();
+}
+
+// ---------- trend explorer ----------
+function setupTrend(){
+  const input=document.getElementById('nameInput'),menu=document.getElementById('nameMenu');
+  let hl=-1,matches=[];
+  function render(){
+    const q=norm(input.value);
+    menu.innerHTML='';hl=-1;
+    if(!q){menu.classList.remove('show');return;}
+    matches=[...nameIndex.entries()]
+      .filter(([k])=>k.startsWith(q))
+      .sort((a,b)=>b[1].total-a[1].total).slice(0,12);
+    if(!matches.length){const m2=[...nameIndex.entries()].filter(([k])=>k.includes(q)).sort((a,b)=>b[1].total-a[1].total).slice(0,12);matches=m2;}
+    if(!matches.length){menu.classList.remove('show');return;}
+    matches.forEach(([k,e],i)=>{
+      const div=document.createElement('div');
+      div.innerHTML=`<span>${e.display}</span><small>${e.total.toLocaleString('de-DE')} ges.</small>`;
+      div.onmousedown=ev=>{ev.preventDefault();addTrend(k);drawTrend();input.value='';menu.classList.remove('show');};
+      menu.append(div);
+    });
+    menu.classList.add('show');
+  }
+  input.addEventListener('input',render);
+  input.addEventListener('keydown',e=>{
+    const items=[...menu.children];
+    if(e.key==='ArrowDown'){hl=Math.min(items.length-1,hl+1);}
+    else if(e.key==='ArrowUp'){hl=Math.max(0,hl-1);}
+    else if(e.key==='Enter'&&matches.length){const k=matches[Math.max(0,hl)][0];addTrend(k);drawTrend();input.value='';menu.classList.remove('show');return;}
+    else if(e.key==='Escape'){menu.classList.remove('show');return;}
+    else return;
+    items.forEach((it,i)=>it.classList.toggle('hl',i===hl));e.preventDefault();
+  });
+  input.addEventListener('blur',()=>setTimeout(()=>menu.classList.remove('show'),150));
+  document.querySelectorAll('#trendMetric button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#trendMetric button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');trendMetric=b.dataset.m;drawTrend();});
+}
+function addTrend(key){
+  if(trendNames.find(t=>t.key===key))return;
+  const color=PALETTE[trendNames.length%PALETTE.length];
+  trendNames.push({key,display:nameIndex.get(key).display,color});
+  renderChips();
+}
+function renderChips(){
+  const c=document.getElementById('chips');
+  c.innerHTML='';
+  trendNames.forEach(t=>{
+    const el=document.createElement('span');el.className='chip';
+    el.innerHTML=`<span class="dot" style="background:${t.color}"></span>${t.display}<button title="Entfernen">×</button>`;
+    el.querySelector('button').onclick=()=>{const i=trendNames.findIndex(x=>x.key===t.key);trendNames.splice(i,1);renderChips();drawTrend();};
+    c.append(el);
+  });
+}
+function drawTrend(){
+  const W=1000,H=360,pad={l:60,r:18,t:16,b:34};
+  const iw=W-pad.l-pad.r,ih=H-pad.t-pad.b;
+  const svg=mk('svg',{viewBox:`0 0 ${W} ${H}`});
+  const x=i=>pad.l+(YEARS.length===1?iw/2:iw*i/(YEARS.length-1));
+  // compute series values
+  const series=trendNames.map(t=>{
+    const e=nameIndex.get(t.key);
+    const vals=YEARS.map(y=>{
+      const yy=e.byYear.get(y);
+      let v=yy?(yy.m+yy.w):0;
+      if(trendMetric==='share'){const d=perYear.get(y);const tot=d.totW+d.totM;v=tot?1000*v/tot:0;}
+      return v;
+    });
+    return {...t,vals};
+  });
+  let max=Math.max(0,...series.flatMap(s=>s.vals))*1.08||1;
+  const yv=v=>pad.t+ih-ih*v/max;
+  // grid
+  const ticks=4;
+  for(let t=0;t<=ticks;t++){const v=max*t/ticks;const yy=yv(v);
+    svg.append(mk('line',{class:'grid',x1:pad.l,x2:W-pad.r,y1:yy,y2:yy}));
+    svg.append(txt(pad.l-8,yy,trendMetric==='share'?v.toFixed(1):fmtK(v),{class:'axislbl','text-anchor':'end','dominant-baseline':'middle'}));}
+  const step=Math.ceil(YEARS.length/10);
+  YEARS.forEach((y,i)=>{if(i%step===0||i===YEARS.length-1)svg.append(txt(x(i),H-10,y,{class:'axislbl','text-anchor':'middle'}));});
+  if(!series.length){svg.append(txt(W/2,H/2,'Vornamen oben hinzufügen, um Trends zu vergleichen',{class:'axislbl','text-anchor':'middle'}));replace('trendChart',svg);return;}
+  // lines
+  series.forEach(s=>{
+    const pts=s.vals.map((v,i)=>[x(i),yv(v)]);
+    const d='M'+pts.map(p=>p.join(',')).join(' L');
+    svg.append(mk('path',{d,fill:'none',stroke:s.color,'stroke-width':2.5,'stroke-linejoin':'round','stroke-linecap':'round'}));
+  });
+  // hover guide
+  const guide=mk('line',{x1:0,x2:0,y1:pad.t,y2:pad.t+ih,stroke:COL.line,'stroke-width':1,style:'opacity:0'});
+  svg.append(guide);
+  const dots=series.map(s=>{const c=mk('circle',{r:4,fill:s.color,stroke:'#0f1320','stroke-width':2,style:'opacity:0'});svg.append(c);return c;});
+  const hit=mk('rect',{x:pad.l,y:pad.t,width:iw,height:ih,fill:'transparent'});
+  hit.addEventListener('mousemove',e=>{
+    const rect=svg.getBoundingClientRect();
+    const px=(e.clientX-rect.left)/rect.width*W;
+    let i=Math.round((px-pad.l)/(iw/Math.max(1,YEARS.length-1)));
+    i=Math.max(0,Math.min(YEARS.length-1,i));
+    guide.setAttribute('x1',x(i));guide.setAttribute('x2',x(i));guide.style.opacity=.8;
+    let rows=series.map((s,k)=>{dots[k].setAttribute('cx',x(i));dots[k].setAttribute('cy',yv(s.vals[i]));dots[k].style.opacity=1;
+      const val=trendMetric==='share'?s.vals[i].toFixed(2)+' ‰':Math.round(s.vals[i]).toLocaleString('de-DE');
+      return `<span style="color:${s.color}">●</span> ${s.display}: <b>${val}</b>`;}).join('<br>');
+    showTip(`<b>${YEARS[i]}</b><br>${rows}`,e.clientX,e.clientY);
+  });
+  hit.addEventListener('mouseleave',()=>{hideTip();guide.style.opacity=0;dots.forEach(d=>d.style.opacity=0);});
+  svg.append(hit);
+  replace('trendChart',svg);
+}
+
+// ---------- svg helpers ----------
+function mk(tag,attrs){const el=document.createElementNS(SVGNS,tag);for(const k in attrs)el.setAttribute(k,attrs[k]);return el;}
+function txt(x,y,s,attrs){const t=mk('text',Object.assign({x,y},attrs||{}));t.textContent=s;return t;}
+function replace(id,svg){const c=document.getElementById(id);c.innerHTML='';c.append(svg);}
+function fmtK(v){return v>=1000?(v/1000).toFixed(v>=10000?0:1)+'k':Math.round(v).toString();}
+
+load();
+</script>
+</body>
+</html>
