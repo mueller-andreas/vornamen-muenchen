@@ -224,8 +224,32 @@ function parseCSV(text){
 }
 
 // ---------- fetch & build ----------
-async function getJSON(url){const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status+' für '+url);return r.json();}
-async function getText(url){const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}
+// The Munich portal does not send CORS headers, so a direct fetch from another
+// origin (e.g. GitHub Pages) is blocked by the browser. We therefore try a direct
+// request first and transparently fall back through public CORS proxies. The first
+// proxy that works is remembered and reused for all following requests.
+const PROXIES=[
+  u=>u,                                                              // direct
+  u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
+  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+  u=>'https://thingproxy.freeboard.io/fetch/'+u,
+];
+let proxyIdx=0, proxyTried=false;
+async function smartFetch(url){
+  let lastErr;
+  for(let i=proxyIdx;i<PROXIES.length;i++){
+    try{
+      const r=await fetch(PROXIES[i](url),{redirect:'follow'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      if(i!==proxyIdx){proxyIdx=i;} // lock onto the first working transport
+      proxyTried=true;
+      return r;
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr||new Error('Netzwerkfehler');
+}
+async function getJSON(url){const r=await smartFetch(url);return r.json();}
+async function getText(url){const r=await smartFetch(url);return r.text();}
 function yearOf(res){
   const s=(res.name||'')+' '+(res.url||'');
   const m=s.match(/(19|20)\d{2}/g);
@@ -253,12 +277,15 @@ async function load(){
   async function worker(){
     while(queue.length){
       const r=queue.shift();
-      try{ const txt=await getText(r.url); ingest(r.year,parseCSV(txt)); }
-      catch(e){ console.warn('Jahr',r.year,'fehlgeschlagen:',e.message); }
+      let ok=false;
+      for(let attempt=0;attempt<2&&!ok;attempt++){
+        try{ const txt=await getText(r.url); ingest(r.year,parseCSV(txt)); ok=true; }
+        catch(e){ if(attempt)console.warn('Jahr',r.year,'fehlgeschlagen:',e.message); }
+      }
       setStatus(`Lade Jahrgänge … ${++done}/${list.length}`);
     }
   }
-  await Promise.all(Array.from({length:5},worker));
+  await Promise.all(Array.from({length:4},worker));
   YEARS=[...perYear.keys()].sort((a,b)=>a-b);
   if(!YEARS.length) return fail(new Error('Daten konnten nicht geparst werden.'));
   build();
@@ -287,9 +314,8 @@ function setStatus(t){document.querySelector('#status .loading div:last-child').
 function fail(e){
   document.getElementById('status').innerHTML=
    `<div class="err"><b>Daten konnten nicht geladen werden.</b><br>${e.message}<br><br>
-    Dies passiert meist, wenn die Seite ohne Internetzugang geöffnet wird oder der Browser den
-    Zugriff auf <code>${PORTAL}</code> blockiert (z. B. CORS).<br>
-    Bitte öffne die Seite mit aktiver Internetverbindung. Datenquelle:
+    Der direkte Zugriff auf <code>${PORTAL}</code> sowie mehrere CORS-Proxys waren nicht
+    erreichbar. Bitte mit aktiver Internetverbindung erneut laden. Datenquelle:
     <a href="${PORTAL}/dataset/${PKG}" target="_blank" rel="noopener">Open Data Portal München</a>.</div>`;
 }
 
